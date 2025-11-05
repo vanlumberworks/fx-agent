@@ -9,9 +9,11 @@ from graph.state import ForexAgentState
 from agents import NewsAgent, TechnicalAgent, FundamentalAgent, RiskAgent
 
 
-def news_node(state: ForexAgentState, config: RunnableConfig) -> Dict[str, Any]:
+async def news_node(state: ForexAgentState, config: RunnableConfig) -> Dict[str, Any]:
     """
-    Node: Analyze news for the currency pair.
+    Node: Analyze news for the currency pair using Google Search.
+
+    Now async and powered by real Google Search!
 
     Args:
         state: Current graph state
@@ -21,11 +23,11 @@ def news_node(state: ForexAgentState, config: RunnableConfig) -> Dict[str, Any]:
         State updates
     """
     pair = state["pair"]
-    print(f"📰 News Agent analyzing {pair}...")
+    print(f"📰 News Agent analyzing {pair} with Google Search...")
 
     try:
         agent = NewsAgent()
-        result = agent.analyze(pair)
+        result = await agent.analyze(pair)
 
         return {
             "news_result": result,
@@ -39,9 +41,11 @@ def news_node(state: ForexAgentState, config: RunnableConfig) -> Dict[str, Any]:
         }
 
 
-def technical_node(state: ForexAgentState, config: RunnableConfig) -> Dict[str, Any]:
+async def technical_node(state: ForexAgentState, config: RunnableConfig) -> Dict[str, Any]:
     """
     Node: Perform technical analysis.
+
+    Now async for parallel execution.
 
     Args:
         state: Current graph state
@@ -69,9 +73,11 @@ def technical_node(state: ForexAgentState, config: RunnableConfig) -> Dict[str, 
         }
 
 
-def fundamental_node(state: ForexAgentState, config: RunnableConfig) -> Dict[str, Any]:
+async def fundamental_node(state: ForexAgentState, config: RunnableConfig) -> Dict[str, Any]:
     """
     Node: Analyze fundamental data.
+
+    Now async for parallel execution.
 
     Args:
         state: Current graph state

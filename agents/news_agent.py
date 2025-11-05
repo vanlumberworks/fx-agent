@@ -1,60 +1,110 @@
-"""News Agent - Analyzes market news and sentiment."""
+"""News Agent - Analyzes market news and sentiment using Google Search."""
 
+import os
+import json
 from typing import Dict, Any
-from datetime import datetime, timedelta
-import random
+from datetime import datetime
 
 
 class NewsAgent:
     """
-    Analyzes news and market sentiment for a currency pair.
+    Analyzes news and market sentiment for a currency pair using Google Search.
 
-    In production, this would connect to real news APIs (NewsAPI, Bloomberg, etc.)
-    For now, it provides realistic mock data.
+    Now powered by:
+    - Gemini 2.5 Flash with Google Search grounding
+    - Real-time news headlines from the web
+    - Actual sentiment analysis based on current events
+    - Source citations for all news items
+
+    Previously: Used mock/template headlines
+    Now: Uses real Google Search results!
     """
 
     def __init__(self):
         self.name = "NewsAgent"
 
-    def analyze(self, pair: str) -> Dict[str, Any]:
+    async def analyze(self, pair: str) -> Dict[str, Any]:
         """
-        Analyze news for the given currency pair.
+        Analyze news for the given currency pair using Google Search.
 
         Args:
-            pair: Currency pair (e.g., "EUR/USD")
+            pair: Currency pair (e.g., "EUR/USD", "XAU/USD")
 
         Returns:
-            Dict with analysis results
+            Dict with analysis results including real headlines and sources
         """
         try:
-            # Extract currencies
-            base, quote = pair.split("/")
+            from google import genai
+            from google.genai import types
 
-            # Mock news headlines (realistic examples)
-            headlines = self._generate_mock_headlines(base, quote)
+            # Get API key
+            api_key = os.getenv("GOOGLE_AI_API_KEY")
+            if not api_key:
+                raise ValueError("GOOGLE_AI_API_KEY not found in environment")
 
-            # Calculate sentiment
-            sentiment_score = self._calculate_sentiment(headlines)
+            # Initialize Gemini client
+            client = genai.Client(api_key=api_key)
 
-            # Determine impact
-            impact = self._assess_impact(sentiment_score)
+            # Extract currencies for better search
+            base, quote = self._parse_pair(pair)
 
+            # Build search-powered analysis prompt
+            prompt = self._build_news_prompt(pair, base, quote)
+
+            # Configure Google Search grounding
+            grounding_tool = types.Tool(google_search=types.GoogleSearch())
+
+            config_gemini = types.GenerateContentConfig(
+                temperature=0.2,  # Low temperature for factual news analysis
+                response_mime_type="application/json",
+                tools=[grounding_tool],
+                thinking_config=types.ThinkingConfig(thinking_budget=0),  # Speed over thinking
+            )
+
+            # Generate analysis with Google Search
+            response = client.models.generate_content(model="gemini-2.5-flash", contents=[prompt], config=config_gemini)
+
+            # Parse response
+            analysis = json.loads(response.text)
+
+            # Extract grounding metadata (sources)
+            sources = []
+            search_queries = []
+
+            if response.candidates[0].grounding_metadata:
+                metadata = response.candidates[0].grounding_metadata
+
+                # Get search queries used
+                search_queries = metadata.web_search_queries or []
+
+                # Get source citations
+                if metadata.grounding_chunks:
+                    sources = [{"title": c.web.title, "url": c.web.uri} for c in metadata.grounding_chunks]
+
+            # Build result with grounding metadata
             return {
                 "success": True,
                 "agent": self.name,
                 "data": {
                     "pair": pair,
-                    "headlines": headlines,
-                    "sentiment_score": sentiment_score,  # -1 to 1
-                    "sentiment": self._sentiment_label(sentiment_score),
-                    "impact": impact,
-                    "news_count": len(headlines),
+                    "headlines": analysis.get("headlines", []),
+                    "sentiment_score": analysis.get("sentiment_score", 0.0),
+                    "sentiment": analysis.get("sentiment", "neutral"),
+                    "impact": analysis.get("impact", "medium"),
+                    "news_count": len(analysis.get("headlines", [])),
                     "analysis_timestamp": datetime.utcnow().isoformat(),
-                    "summary": self._generate_summary(base, quote, sentiment_score),
+                    "summary": analysis.get("summary", "No summary available"),
+                    "key_events": analysis.get("key_events", []),
+                    # Grounding metadata
+                    "search_queries": search_queries,
+                    "sources": sources,
+                    "data_source": "google_search",  # Indicates real data
                 },
             }
 
         except Exception as e:
+            # Fallback to basic error response
+            print(f"  ⚠️  News Agent error: {str(e)}")
             return {
                 "success": False,
                 "agent": self.name,
@@ -62,65 +112,83 @@ class NewsAgent:
                 "data": {},
             }
 
-    def _generate_mock_headlines(self, base: str, quote: str) -> list:
-        """Generate realistic mock news headlines."""
-        templates = [
-            f"{base} Central Bank signals interest rate stability",
-            f"{quote} economy shows strong GDP growth",
-            f"Trade tensions ease between {base} and {quote} regions",
-            f"{base} inflation concerns mount amid supply chain issues",
-            f"Market expects {quote} policy tightening next quarter",
-        ]
-
-        # Randomly select 3-5 headlines
-        num_headlines = random.randint(3, 5)
-        selected = random.sample(templates, min(num_headlines, len(templates)))
-
-        return [
-            {
-                "title": headline,
-                "timestamp": (datetime.utcnow() - timedelta(hours=random.randint(1, 48))).isoformat(),
-                "sentiment": random.choice(["bullish", "bearish", "neutral"]),
-            }
-            for headline in selected
-        ]
-
-    def _calculate_sentiment(self, headlines: list) -> float:
-        """Calculate overall sentiment score."""
-        sentiment_map = {"bullish": 0.7, "neutral": 0.0, "bearish": -0.7}
-
-        if not headlines:
-            return 0.0
-
-        total = sum(sentiment_map.get(h["sentiment"], 0.0) for h in headlines)
-        return round(total / len(headlines), 2)
-
-    def _sentiment_label(self, score: float) -> str:
-        """Convert sentiment score to label."""
-        if score > 0.3:
-            return "bullish"
-        elif score < -0.3:
-            return "bearish"
+    def _parse_pair(self, pair: str) -> tuple:
+        """Parse trading pair into base and quote currencies."""
+        if "/" in pair:
+            base, quote = pair.split("/")
         else:
-            return "neutral"
+            # Assume format like "EURUSD"
+            base = pair[:3]
+            quote = pair[3:]
+        return base.upper(), quote.upper()
 
-    def _assess_impact(self, sentiment_score: float) -> str:
-        """Assess the impact level."""
-        abs_score = abs(sentiment_score)
-        if abs_score > 0.6:
-            return "high"
-        elif abs_score > 0.3:
-            return "medium"
-        else:
-            return "low"
+    def _build_news_prompt(self, pair: str, base: str, quote: str) -> str:
+        """Build the news analysis prompt for Gemini with Google Search."""
+        return f"""You are a forex news analyst with real-time access to Google Search.
 
-    def _generate_summary(self, base: str, quote: str, sentiment: float) -> str:
-        """Generate a summary of the news analysis."""
-        sentiment_label = self._sentiment_label(sentiment)
+TASK: Analyze current news and market sentiment for {pair} ({base}/{quote})
 
-        if sentiment_label == "bullish":
-            return f"News sentiment is bullish for {base}/{quote}. Positive economic indicators and policy signals suggest upward pressure."
-        elif sentiment_label == "bearish":
-            return f"News sentiment is bearish for {base}/{quote}. Negative headlines and economic concerns suggest downward pressure."
-        else:
-            return f"News sentiment is neutral for {base}/{quote}. Mixed signals with no clear directional bias."
+Use Google Search to find:
+1. Recent news headlines (last 24-48 hours) about:
+   - "{pair} forex news"
+   - "{base} currency news"
+   - "{quote} currency news"
+   - "{base} central bank"
+   - "{base} economy"
+
+2. Major events affecting the currencies:
+   - Central bank decisions
+   - Economic data releases
+   - Geopolitical events
+   - Market sentiment shifts
+
+ANALYSIS REQUIREMENTS:
+
+1. **Headlines** (3-5 most relevant)
+   - Extract ACTUAL recent headlines from search results
+   - Include publication date/time if available
+   - Focus on market-moving news
+
+2. **Sentiment Analysis**
+   - Analyze overall market sentiment from headlines
+   - Score: -1.0 (very bearish) to +1.0 (very bullish)
+   - Consider: tone, events, analyst opinions
+
+3. **Impact Assessment**
+   - high: Major events (rate decisions, GDP, crises)
+   - medium: Notable events (inflation data, forecasts)
+   - low: Minor events (routine statements)
+
+4. **Key Events**
+   - List 2-3 most important recent events
+   - Include dates and brief descriptions
+
+OUTPUT FORMAT (JSON):
+{{
+  "headlines": [
+    {{
+      "title": "Actual headline from search results",
+      "date": "2025-11-05" (if available, else "recent"),
+      "sentiment": "bullish|bearish|neutral",
+      "source": "Publication name if available"
+    }}
+  ],
+  "sentiment_score": 0.0 to 1.0 or -1.0 to 0.0,
+  "sentiment": "bullish|bearish|neutral",
+  "impact": "high|medium|low",
+  "key_events": [
+    "Event 1: Description",
+    "Event 2: Description"
+  ],
+  "summary": "Brief summary of market sentiment and why (1-2 sentences)"
+}}
+
+CRITICAL:
+- Use ONLY information from Google Search results
+- Do NOT make up headlines or events
+- If no recent news found, indicate in summary
+- Be objective and fact-based
+- Sentiment must reflect actual market conditions
+
+Analyze now: {pair}
+"""
