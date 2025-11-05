@@ -25,6 +25,8 @@ class PriceService:
     # API endpoints
     METAL_API_URL = "https://api.metalpriceapi.com/v1/latest"
     FOREX_API_URL = "https://api.forexrateapi.com/v1/latest"
+    FOREX_HISTORICAL_URL = "https://api.forexrateapi.com/v1"
+    FOREX_OHLC_URL = "https://api.forexrateapi.com/v1/ohlc"
 
     # Commodity symbols
     COMMODITIES = ["XAU", "XAG", "XPT", "XPD"]  # Gold, Silver, Platinum, Palladium
@@ -201,6 +203,162 @@ class PriceService:
         except Exception as e:
             print(f"  ⚠️  Forex Rate API error: {str(e)}")
             return None
+
+    def get_historical_rates(self, pair: str, date: str = "yesterday") -> Optional[Dict[str, Any]]:
+        """
+        Get historical exchange rates for a specific date.
+
+        Args:
+            pair: Trading pair (e.g., "EUR/USD")
+            date: Date string in YYYY-MM-DD format or "yesterday" (default)
+
+        Returns:
+            Dict with historical rate data or None if failed:
+            {
+                "pair": "EUR/USD",
+                "rate": 1.0845,
+                "date": "2025-01-28",
+                "timestamp": 1738108799,
+                "source": "forexrateapi"
+            }
+        """
+        try:
+            base, quote = self._parse_pair(pair)
+
+            # Build URL with date
+            url = f"{self.FOREX_HISTORICAL_URL}/{date}"
+            params = {"api_key": self.forex_api_key, "base": base, "currencies": quote}
+
+            response = requests.get(url, params=params, timeout=5)
+            response.raise_for_status()
+
+            data = response.json()
+
+            if not data.get("success"):
+                print(f"  ⚠️  Historical API error: {data.get('error', 'Unknown error')}")
+                return None
+
+            rates = data.get("rates", {})
+            if quote not in rates:
+                return None
+
+            return {
+                "pair": f"{base}/{quote}",
+                "rate": round(rates[quote], 5),
+                "date": date,
+                "timestamp": data.get("timestamp"),
+                "source": "forexrateapi",
+            }
+
+        except Exception as e:
+            print(f"  ⚠️  Historical rates error: {str(e)}")
+            return None
+
+    def get_ohlc(self, pair: str, date: str = "yesterday") -> Optional[Dict[str, Any]]:
+        """
+        Get OHLC (Open/High/Low/Close) data for a specific date.
+
+        Args:
+            pair: Trading pair (e.g., "EUR/USD")
+            date: Date string in YYYY-MM-DD format or "yesterday"/"week"/"month"/"year"
+
+        Returns:
+            Dict with OHLC data or None if failed:
+            {
+                "pair": "EUR/USD",
+                "open": 1.0445,
+                "high": 1.0456,
+                "low": 1.0415,
+                "close": 1.0446,
+                "date": "2025-01-28",
+                "timestamp": 1738108799,
+                "source": "forexrateapi"
+            }
+        """
+        try:
+            base, quote = self._parse_pair(pair)
+
+            params = {
+                "api_key": self.forex_api_key,
+                "base": base,
+                "currency": quote,
+                "date": date,
+            }
+
+            response = requests.get(self.FOREX_OHLC_URL, params=params, timeout=5)
+            response.raise_for_status()
+
+            data = response.json()
+
+            if not data.get("success"):
+                print(f"  ⚠️  OHLC API error: {data.get('error', 'Unknown error')}")
+                return None
+
+            rate = data.get("rate", {})
+
+            return {
+                "pair": f"{base}/{quote}",
+                "open": round(rate.get("open", 0), 5),
+                "high": round(rate.get("high", 0), 5),
+                "low": round(rate.get("low", 0), 5),
+                "close": round(rate.get("close", 0), 5),
+                "date": date,
+                "timestamp": data.get("timestamp"),
+                "source": "forexrateapi",
+            }
+
+        except Exception as e:
+            print(f"  ⚠️  OHLC error: {str(e)}")
+            return None
+
+    def get_enriched_price(self, pair: str) -> Optional[Dict[str, Any]]:
+        """
+        Get current price enriched with historical context and OHLC data.
+
+        This provides comprehensive price data for LLM analysis:
+        - Current live price
+        - Yesterday's OHLC data
+        - Previous day rate for comparison
+
+        Args:
+            pair: Trading pair (e.g., "EUR/USD", "XAU/USD")
+
+        Returns:
+            Dict with enriched price data including historical context
+        """
+        # Get current price
+        current = self.get_price(pair)
+        if not current:
+            return None
+
+        # Add historical context (only for forex pairs)
+        base, quote = self._parse_pair(pair)
+
+        # Skip historical data for commodities (not supported by Forex API)
+        if base not in self.COMMODITIES:
+            # Get yesterday's OHLC
+            ohlc = self.get_ohlc(pair, "yesterday")
+
+            # Get yesterday's rate
+            historical = self.get_historical_rates(pair, "yesterday")
+
+            # Calculate price change
+            price_change = None
+            price_change_pct = None
+            if historical and "rate" in historical:
+                price_change = current["price"] - historical["rate"]
+                price_change_pct = (price_change / historical["rate"]) * 100
+
+            # Enrich current data
+            current["historical"] = {
+                "yesterday_rate": historical["rate"] if historical else None,
+                "price_change": round(price_change, 5) if price_change else None,
+                "price_change_pct": round(price_change_pct, 2) if price_change_pct else None,
+            }
+
+            current["ohlc"] = ohlc if ohlc else None
+
+        return current
 
     def _get_from_cache(self, pair: str) -> Optional[Dict[str, Any]]:
         """Get price from cache if still valid."""
