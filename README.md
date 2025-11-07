@@ -170,6 +170,27 @@ eventSource.addEventListener('decision', (event) => {
 
 📖 **Full documentation**: See [docs/STREAMING_API.md](docs/STREAMING_API.md)
 
+### Frontend Integration
+
+Complete frontend integration examples are available in the `/frontend-examples` directory:
+
+- **TypeScript Types** (`types.ts`) - Full type definitions for type-safe development
+- **React Hook** (`useForexAnalysis.tsx`) - Custom hook for easy React integration
+- **React Component** (`ForexAnalysisComponent.tsx`) - Drop-in component with full UI
+- **Vanilla JS Demo** (`demo.html`) - Standalone HTML/JS demo (no build tools needed)
+- **Integration Guide** (`FRONTEND_INTEGRATION_GUIDE.md`) - Tutorials for React, Vue, vanilla JS
+
+**Quick Test:**
+```bash
+# Start the API server (Terminal 1)
+python backend/server.py
+
+# Open the demo (Terminal 2)
+open frontend-examples/demo.html
+```
+
+📖 **See**: [frontend-examples/README.md](frontend-examples/README.md) for complete integration guides
+
 ## 💻 Usage Examples
 
 ### Basic Analysis
@@ -269,6 +290,14 @@ vibecode_claude/
 │   ├── ARCHITECTURE.md        # System architecture
 │   ├── STREAMING_API.md       # Streaming API docs
 │   └── ...
+│
+├── frontend-examples/          # Frontend integration examples
+│   ├── types.ts               # TypeScript type definitions
+│   ├── useForexAnalysis.tsx   # React custom hook
+│   ├── ForexAnalysisComponent.tsx # Complete React component
+│   ├── demo.html              # Standalone vanilla JS demo
+│   ├── FRONTEND_INTEGRATION_GUIDE.md
+│   └── README.md
 │
 ├── system.py                  # Main ForexAgentSystem class
 ├── main.py                    # CLI entry point
