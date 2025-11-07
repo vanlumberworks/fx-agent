@@ -3,8 +3,9 @@
 import os
 import json
 import asyncio
+import time
 from typing import Optional
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
@@ -12,6 +13,9 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 
 from backend.streaming_adapter import StreamingForexSystem
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -61,15 +65,20 @@ class HealthResponse(BaseModel):
 
 # Health check endpoint
 @app.get("/health", response_model=HealthResponse)
-async def health_check():
+async def health_check(request: Request):
     """
     Health check endpoint.
 
     Returns system status and configuration info.
     """
+    client_ip = request.client.host
+    logger.debug(f"🏥 [HEALTH] Health check from {client_ip}")
+
     try:
         system = get_system()
         info = system.get_info()
+
+        logger.debug(f"🏥 [HEALTH] System healthy, API configured: {info['system']['api_configured']}")
 
         return HealthResponse(
             status="healthy",
@@ -77,6 +86,7 @@ async def health_check():
             api_configured=info["system"]["api_configured"]
         )
     except Exception as e:
+        logger.error(f"❌ [HEALTH] Health check failed: {str(e)}")
         return JSONResponse(
             status_code=503,
             content={
@@ -139,7 +149,7 @@ async def analyze(request: AnalysisRequest):
 
 # Streaming analysis endpoint (SSE)
 @app.post("/analyze/stream")
-async def analyze_stream(request: AnalysisRequest):
+async def analyze_stream(analysis_request: AnalysisRequest, client_request: Request):
     """
     Analyze a trading query with real-time streaming updates (SSE).
 
@@ -150,7 +160,8 @@ async def analyze_stream(request: AnalysisRequest):
     4. Final synthesis decision
 
     Args:
-        request: Analysis request with query and optional parameters
+        analysis_request: Analysis request with query and optional parameters
+        client_request: FastAPI request object
 
     Returns:
         Server-Sent Events stream with real-time updates
@@ -164,12 +175,18 @@ async def analyze_stream(request: AnalysisRequest):
         - complete: Analysis complete with full result
         - error: Error occurred
     """
+    client_ip = client_request.client.host
+    logger.info(f"🌐 [API] POST /analyze/stream from {client_ip}")
+    logger.info(f"🌐 [API] Query: '{analysis_request.query}'")
+    start_time = time.time()
+
     try:
         # Create system with custom parameters if provided
-        if request.account_balance or request.max_risk_per_trade:
+        if analysis_request.account_balance or analysis_request.max_risk_per_trade:
+            logger.info(f"🌐 [API] Using custom parameters: balance={analysis_request.account_balance}, risk={analysis_request.max_risk_per_trade}")
             system = StreamingForexSystem(
-                account_balance=request.account_balance,
-                max_risk_per_trade=request.max_risk_per_trade
+                account_balance=analysis_request.account_balance,
+                max_risk_per_trade=analysis_request.max_risk_per_trade
             )
         else:
             system = get_system()
@@ -177,7 +194,7 @@ async def analyze_stream(request: AnalysisRequest):
         async def event_generator():
             """Generate SSE events from the analysis stream."""
             try:
-                async for event in system.analyze_stream(request.query):
+                async for event in system.analyze_stream(analysis_request.query):
                     # Format as SSE event
                     event_type = event.get("type", "message")
                     event_data = event.get("data", {})
@@ -191,6 +208,9 @@ async def analyze_stream(request: AnalysisRequest):
                     await asyncio.sleep(0.01)
 
             except Exception as e:
+                elapsed = time.time() - start_time
+                logger.error(f"❌ [API] Stream error after {elapsed:.2f}s: {type(e).__name__}: {str(e)}")
+
                 # Send error event
                 yield {
                     "event": "error",
@@ -200,16 +220,20 @@ async def analyze_stream(request: AnalysisRequest):
                     })
                 }
 
+        logger.info(f"🌐 [API] Starting SSE stream for query: '{analysis_request.query}'")
         return EventSourceResponse(event_generator())
 
     except Exception as e:
+        elapsed = time.time() - start_time
+        logger.error(f"❌ [API] Failed to start stream after {elapsed:.2f}s: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
 # GET endpoint for simple queries (useful for testing)
 @app.get("/analyze/stream")
 async def analyze_stream_get(
-    query: str = Query(..., description="Trading query (e.g., 'Analyze gold', 'EUR/USD')")
+    query: str = Query(..., description="Trading query (e.g., 'Analyze gold', 'EUR/USD')"),
+    request: Request = None
 ):
     """
     Streaming analysis with GET request (for easy testing).
@@ -217,8 +241,8 @@ async def analyze_stream_get(
     Example:
         GET /analyze/stream?query=Analyze+gold+trading
     """
-    request = AnalysisRequest(query=query)
-    return await analyze_stream(request)
+    analysis_request = AnalysisRequest(query=query)
+    return await analyze_stream(analysis_request, request)
 
 
 # Root endpoint
