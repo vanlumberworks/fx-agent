@@ -1,5 +1,5 @@
 {
-  "name": "vibecode-claude-monorepo",
+  "name": "fx-agent",
   "version": "2.0.0",
   "private": true,
   "description": "Forex Agent System - LangGraph + Gemini + React",
