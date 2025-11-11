@@ -30,7 +30,11 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure this for production security
+    allow_origins=[
+        "http://localhost:3000",  # Local development
+        "http://localhost:5173",  # Vite dev server
+        "https://forex-agent-frontend-production.up.railway.app",  # Railway production
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
