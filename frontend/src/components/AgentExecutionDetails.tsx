@@ -177,7 +177,7 @@ export function AgentExecutionDetails({ state, isAnalyzing }: AgentExecutionDeta
                       <div key={key} className="p-3 rounded-lg bg-[#1a1f3a] border border-gray-700">
                         <div className="text-xs text-gray-400 mb-1.5 font-semibold">{key}:</div>
                         <div className="text-sm text-white">
-                          {typeof value === 'object' ? (
+                          {typeof value === 'object' && value !== null ? (
                             Array.isArray(value) ? (
                               <ul className="space-y-1 ml-2">
                                 {value.map((item: any, idx: number) => (
