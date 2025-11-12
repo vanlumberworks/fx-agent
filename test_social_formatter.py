@@ -25,12 +25,18 @@ def test_twitter_trading_signal():
 
     result = {
         'pair': 'EUR/USD',
-        'decision': 'BUY',
-        'entry_price': 1.0850,
-        'stop_loss': 1.0800,
-        'target_price': 1.0950,
-        'risk_reward_ratio': 2.0,
-        'reasoning': 'Strong bullish momentum with ECB rate hike expectations.'
+        'decision': {
+            'action': 'BUY',
+            'confidence': 0.85,
+            'reasoning': {
+                'summary': 'Strong bullish momentum with ECB rate hike expectations.'
+            },
+            'trade_parameters': {
+                'entry_price': 1.0850,
+                'stop_loss': 1.0800,
+                'take_profit': 1.0950
+            }
+        }
     }
 
     post = format_for_twitter(result, include_trade_params=True)
@@ -57,12 +63,18 @@ def test_twitter_sell_signal():
 
     result = {
         'pair': 'GBP/USD',
-        'decision': 'SELL',
-        'entry_price': 1.2650,
-        'stop_loss': 1.2700,
-        'target_price': 1.2550,
-        'risk_reward_ratio': 2.0,
-        'reasoning': 'GBP weakening on BOE dovish stance.'
+        'decision': {
+            'action': 'SELL',
+            'confidence': 0.78,
+            'reasoning': {
+                'summary': 'GBP weakening on BOE dovish stance.'
+            },
+            'trade_parameters': {
+                'entry_price': 1.2650,
+                'stop_loss': 1.2700,
+                'take_profit': 1.2550
+            }
+        }
     }
 
     post = format_for_twitter(result)
@@ -85,8 +97,13 @@ def test_twitter_informational():
 
     result = {
         'pair': 'XAU/USD',
-        'decision': 'WAIT',
-        'reasoning': 'Gold consolidating near key support. Awaiting Fed decision before taking position.'
+        'decision': {
+            'action': 'WAIT',
+            'confidence': 0.5,
+            'reasoning': {
+                'summary': 'Gold consolidating near key support. Awaiting Fed decision before taking position.'
+            }
+        }
     }
 
     post = format_for_twitter(result, include_trade_params=False)
