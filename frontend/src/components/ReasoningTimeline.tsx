@@ -7,9 +7,10 @@ interface ReasoningTimelineProps {
   state: AnalysisState
   isAnalyzing: boolean
   query: string
+  onViewReport?: () => void
 }
 
-export function ReasoningTimeline({ state, isAnalyzing, query }: ReasoningTimelineProps) {
+export function ReasoningTimeline({ state, isAnalyzing, query, onViewReport }: ReasoningTimelineProps) {
   // Simplified process flow steps for left sidebar
   const processFlowSteps = [
     {
@@ -264,6 +265,17 @@ export function ReasoningTimeline({ state, isAnalyzing, query }: ReasoningTimeli
                           Download
                         </button>
                       </div>
+
+                      {/* View Full Report Button */}
+                      {onViewReport && state.finalResult && (
+                        <button
+                          onClick={onViewReport}
+                          className="w-full py-3 px-6 rounded-xl bg-gradient-to-r from-[#f59e0b] to-[#fbbf24] hover:from-[#d97706] hover:to-[#f59e0b] text-black font-semibold transition-all duration-300 flex items-center justify-center gap-2 mt-3 shadow-lg hover:shadow-xl"
+                        >
+                          <span className="text-xl">📊</span>
+                          <span>View Full Report & Share</span>
+                        </button>
+                      )}
                     </div>
 
                     {state.decision && (

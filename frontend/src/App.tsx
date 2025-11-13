@@ -20,14 +20,14 @@ function App() {
   useEffect(() => {
     if (isAnalyzing || state.progress.progressMessages.length > 0) {
       setViewMode('timeline')
-    } else if (state.decision && !isAnalyzing) {
+    } else if (state.finalResult && !isAnalyzing) {
       // Add a small delay before showing the report for dramatic effect
       const timer = setTimeout(() => {
         setViewMode('report')
       }, 500)
       return () => clearTimeout(timer)
     }
-  }, [isAnalyzing, state.decision, state.progress.progressMessages.length])
+  }, [isAnalyzing, state.finalResult, state.progress.progressMessages.length])
 
   // Show toast notification when report is ready
   useEffect(() => {
@@ -48,6 +48,10 @@ function App() {
   const handleNewAnalysis = () => {
     setViewMode('chat')
     setCurrentQuery('')
+  }
+
+  const handleViewReport = () => {
+    setViewMode('report')
   }
 
   return (
@@ -117,6 +121,7 @@ function App() {
               state={state}
               isAnalyzing={isAnalyzing}
               query={currentQuery}
+              onViewReport={handleViewReport}
             />
           </motion.div>
         )}
