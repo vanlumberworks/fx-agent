@@ -20,7 +20,8 @@
       "Bash(git commit:*)",
       "Bash(pnpm build:check:*)",
       "Skill(frontend-design)",
-      "Bash(npx shadcn@latest add card badge dialog tabs progress separator alert avatar collapsible input label textarea --overwrite --yes)"
+      "Bash(npx shadcn@latest add card badge dialog tabs progress separator alert avatar collapsible input label textarea --overwrite --yes)",
+      "Bash(pnpm run build:check:*)"
     ]
   },
   "enableAllProjectMcpServers": true,
